@@ -3,7 +3,8 @@
     "allow": [
       "Bash(claude mcp:*)",
       "Bash(npm show:*)",
-      "Bash(curl -s \"https://registry.npmjs.org/@superpowers/mcp\")"
+      "Bash(curl -s \"https://registry.npmjs.org/@superpowers/mcp\")",
+      "Bash(ngrok version:*)"
     ]
   }
 }

@@ -1,0 +1,23 @@
+{
+  "_comment": "Map Twilio 'To' numbers to friendly names and optional Slack channel overrides.",
+  "_formats": {
+    "simple": "+1XXXXXXXXXX: \"Friendly Name\"",
+    "advanced": "+1XXXXXXXXXX: { \"name\": \"Friendly Name\", \"channel\": \"C0123456789\" }"
+  },
+  "numbers": {
+    "+12025550101": "Marketing Line 1",
+    "+12025550102": "Marketing Line 2",
+    "+12025550103": {
+      "name": "Sales — West Coast",
+      "channel": "C0SALES0001"
+    },
+    "+12025550104": {
+      "name": "Sales — East Coast",
+      "channel": "C0SALES0001"
+    },
+    "+12025550105": {
+      "name": "Support Line",
+      "channel": "C0SUPPORT01"
+    }
+  }
+}
