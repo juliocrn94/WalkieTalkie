@@ -29,6 +29,7 @@ async function downloadRecording(recordingUrl) {
 
   const response = await fetch(url, {
     headers: { Authorization: `Basic ${auth}` },
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {

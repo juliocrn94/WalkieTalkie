@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 const twilio = require('twilio');
+const { getSetting } = require('./settings');
 
 const CAPABILITIES_PATH = path.join(__dirname, '../../data/capabilities.json');
 const SYNC_INTERVAL_DAYS = 14;
@@ -47,7 +48,7 @@ function buildRecord(num) {
 }
 
 function makeClient() {
-  return twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  return twilio(getSetting('twilio.accountSid'), getSetting('twilio.authToken'));
 }
 
 // ─── Sync functions ───────────────────────────────────────────────────────────
@@ -133,7 +134,7 @@ function getCapabilities() {
  * - If the store is stale or missing, fires a full sync immediately (non-blocking)
  */
 function initCapabilitiesSync() {
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+  if (!getSetting('twilio.accountSid') || !getSetting('twilio.authToken')) {
     console.warn('[capabilities] Missing Twilio credentials — capability sync disabled');
     return;
   }

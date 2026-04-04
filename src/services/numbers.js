@@ -1,7 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const { getSetting } = require('./settings');
 
 const CONFIG_PATH = path.join(__dirname, '../../config/numbers.json');
+
+// ─── Read ──────────────────────────────────────────────────────────────────────
 
 /**
  * Reads config/numbers.json fresh on every call so edits take effect
@@ -16,12 +19,13 @@ function loadConfig() {
   }
 }
 
+function saveConfig(config) {
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
 /**
  * Returns the friendly name for a Twilio "To" number.
  * Falls back to the raw E.164 number if unmapped.
- *
- * @param {string} phoneNumber  E.164 format, e.g. "+12025550101"
- * @returns {string}
  */
 function getFriendlyName(phoneNumber) {
   const { numbers } = loadConfig();
@@ -32,10 +36,7 @@ function getFriendlyName(phoneNumber) {
 
 /**
  * Returns the Slack channel ID for a Twilio "To" number.
- * Falls back to SLACK_DEFAULT_CHANNEL env var if no override is set.
- *
- * @param {string} phoneNumber  E.164 format
- * @returns {string}
+ * Falls back to the configured default channel (settings.json → env var).
  */
 function getChannel(phoneNumber) {
   const { numbers } = loadConfig();
@@ -43,7 +44,41 @@ function getChannel(phoneNumber) {
   if (entry && typeof entry === 'object' && entry.channel) {
     return entry.channel;
   }
-  return process.env.SLACK_DEFAULT_CHANNEL;
+  return getSetting('slack.defaultChannel');
 }
 
-module.exports = { getFriendlyName, getChannel };
+// ─── Write ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Upserts a number entry in config/numbers.json.
+ * If name and channel are both empty, stores a simple string (empty string).
+ *
+ * @param {string} phoneNumber  E.164 format
+ * @param {{ name?: string, channel?: string }} opts
+ */
+function setNumber(phoneNumber, { name = '', channel = '' } = {}) {
+  const config = loadConfig();
+  if (name && channel) {
+    config.numbers[phoneNumber] = { name, channel };
+  } else if (name) {
+    config.numbers[phoneNumber] = name;
+  } else if (channel) {
+    config.numbers[phoneNumber] = { name: '', channel };
+  } else {
+    config.numbers[phoneNumber] = '';
+  }
+  saveConfig(config);
+}
+
+/**
+ * Removes a number entry from config/numbers.json.
+ *
+ * @param {string} phoneNumber  E.164 format
+ */
+function removeNumber(phoneNumber) {
+  const config = loadConfig();
+  delete config.numbers[phoneNumber];
+  saveConfig(config);
+}
+
+module.exports = { loadConfig, getFriendlyName, getChannel, setNumber, removeNumber };
