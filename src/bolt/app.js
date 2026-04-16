@@ -24,10 +24,14 @@ const boltApp = new App({
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function publishAppHome(client, userId) {
-  await client.views.publish({
-    user_id: userId,
-    view: buildAppHomeView(),
-  });
+  try {
+    await client.views.publish({
+      user_id: userId,
+      view: buildAppHomeView(),
+    });
+  } catch (err) {
+    console.error('[bolt] Failed to publish App Home:', err.message);
+  }
 }
 
 /** Post an ephemeral confirmation message to the user in the default channel. */
@@ -77,12 +81,20 @@ boltApp.event('app_home_opened', async ({ event, client }) => {
 
 boltApp.action('action_edit_credentials', async ({ ack, client, body }) => {
   await ack();
-  await client.views.open({ trigger_id: body.trigger_id, view: buildCredentialsModal() });
+  try {
+    await client.views.open({ trigger_id: body.trigger_id, view: buildCredentialsModal() });
+  } catch (err) {
+    console.error('[bolt] Failed to open credentials modal:', err.message);
+  }
 });
 
 boltApp.action('action_edit_default_channel', async ({ ack, client, body }) => {
   await ack();
-  await client.views.open({ trigger_id: body.trigger_id, view: buildDefaultChannelModal() });
+  try {
+    await client.views.open({ trigger_id: body.trigger_id, view: buildDefaultChannelModal() });
+  } catch (err) {
+    console.error('[bolt] Failed to open default channel modal:', err.message);
+  }
 });
 
 boltApp.action('action_sync_twilio', async ({ ack, client, body }) => {
@@ -95,12 +107,20 @@ boltApp.action('action_sync_twilio', async ({ ack, client, body }) => {
 
 boltApp.action('action_add_number', async ({ ack, client, body }) => {
   await ack();
-  await client.views.open({ trigger_id: body.trigger_id, view: buildNumberModal() });
+  try {
+    await client.views.open({ trigger_id: body.trigger_id, view: buildNumberModal() });
+  } catch (err) {
+    console.error('[bolt] Failed to open add number modal:', err.message);
+  }
 });
 
 boltApp.action('action_upload_csv', async ({ ack, client, body }) => {
   await ack();
-  await client.views.open({ trigger_id: body.trigger_id, view: buildCsvUploadModal() });
+  try {
+    await client.views.open({ trigger_id: body.trigger_id, view: buildCsvUploadModal() });
+  } catch (err) {
+    console.error('[bolt] Failed to open CSV upload modal:', err.message);
+  }
 });
 
 // No-op ack for the download button (it's a URL link — Slack still sends an action)
@@ -112,21 +132,25 @@ boltApp.action(/^action_number_menu__/, async ({ ack, client, body, action }) =>
   const selected = action.selected_option.value;
   const [op, phone] = selected.split(/__(.+)/);
 
-  if (op === 'remove') {
-    const { numbers } = loadConfig();
-    const entry = numbers[phone] || null;
-    const name = entry ? (typeof entry === 'string' ? entry : (entry.name || '')) : '';
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: buildConfirmRemoveModal(phone, name),
-    });
-  } else if (op === 'edit') {
-    const { numbers } = loadConfig();
-    const entry = numbers[phone] || null;
-    await client.views.open({
-      trigger_id: body.trigger_id,
-      view: buildNumberModal(phone, entry),
-    });
+  try {
+    if (op === 'remove') {
+      const { numbers } = loadConfig();
+      const entry = numbers[phone] || null;
+      const name = entry ? (typeof entry === 'string' ? entry : (entry.name || '')) : '';
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: buildConfirmRemoveModal(phone, name),
+      });
+    } else if (op === 'edit') {
+      const { numbers } = loadConfig();
+      const entry = numbers[phone] || null;
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: buildNumberModal(phone, entry),
+      });
+    }
+  } catch (err) {
+    console.error('[bolt] Failed to open number menu modal:', err.message);
   }
 });
 

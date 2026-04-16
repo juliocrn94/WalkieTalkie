@@ -4,7 +4,10 @@
       "Bash(claude mcp:*)",
       "Bash(npm show:*)",
       "Bash(curl -s \"https://registry.npmjs.org/@superpowers/mcp\")",
-      "Bash(ngrok version:*)"
+      "Bash(ngrok version:*)",
+      "Bash(curl -s \"http://localhost:3000/logs?limit=10\")",
+      "Bash(curl -s \"http://localhost:3000/logs?limit=20\")",
+      "Bash(curl -s \"http://localhost:3000/capabilities\")"
     ]
   }
 }

@@ -38,15 +38,49 @@ function threadKey(channel, toNumber) {
 
 /**
  * Attempts to extract a verification code from a message body.
- * Matches 4–8 digit sequences that appear as standalone tokens.
- * Returns null if no code is found.
+ *
+ * Handles two transcription styles:
+ *   - Compact:  "Your code is 123456"        → matches \b\d{4,8}\b
+ *   - Spoken:   "1, 2, 3, 4, 5, 6" or        → digits separated by comma/space/dot
+ *               "one two three four five six"  → written-out English digit words
+ *
+ * Returns the code as a plain digit string, or null if none found.
  *
  * @param {string} body
  * @returns {string|null}
  */
 function parseOtp(body) {
-  const match = body.match(/\b(\d{4,8})\b/);
-  return match ? match[1] : null;
+  if (!body) return null;
+
+  // 1. Standard consecutive digits (4–8)
+  const compact = body.match(/\b(\d{4,8})\b/);
+  if (compact) return compact[1];
+
+  // 2. Spoken digits separated by commas, spaces, or dots: "5, 4, 3, 2, 1" or "1 2 3 4 5 6"
+  const spokenDigits = body.match(/\b\d[\s,.\-]*(?:\d[\s,.\-]*){3,7}\b/);
+  if (spokenDigits) {
+    const digits = spokenDigits[0].replace(/[\s,.\-]/g, '');
+    if (digits.length >= 4 && digits.length <= 8) return digits;
+  }
+
+  // 3. Written-out English digit words: "one two three four five six"
+  const wordMap = { zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9 };
+  const wordPattern = new RegExp(
+    `\\b((?:${Object.keys(wordMap).join('|')})(?:[\\s,]+(?:${Object.keys(wordMap).join('|')})){3,7})\\b`,
+    'i'
+  );
+  const wordMatch = body.match(wordPattern);
+  if (wordMatch) {
+    const digits = wordMatch[1]
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .map((w) => wordMap[w])
+      .filter((d) => d !== undefined)
+      .join('');
+    if (digits.length >= 4 && digits.length <= 8) return digits;
+  }
+
+  return null;
 }
 
 // ─── Block Kit builders ───────────────────────────────────────────────────────
