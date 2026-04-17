@@ -281,7 +281,7 @@ function buildNumberModal(phone = '', entry = null) {
         type: 'input',
         block_id: 'block_phone',
         label: { type: 'plain_text', text: 'Phone Number' },
-        hint: { type: 'plain_text', text: 'E.164 format — e.g. +15103137237. Must start with + and country code.' },
+        hint: { type: 'plain_text', text: 'Include country code. Any format works — e.g. +52 999 489 0783 or 529994890783.' },
         element: {
           type: 'plain_text_input',
           action_id: 'input_phone',

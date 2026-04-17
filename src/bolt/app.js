@@ -239,16 +239,15 @@ boltApp.view('modal_default_channel', async ({ ack, view, client, body }) => {
 
 boltApp.view('modal_number', async ({ ack, view, client, body }) => {
   const values = view.state.values;
-  const phone = values.block_phone.input_phone.value?.trim() || '';
+  const phone = normalizePhone(values.block_phone.input_phone.value || '');
   const name = values.block_name.input_name.value?.trim() || '';
   const channel = values.block_channel.input_channel?.selected_channel || '';
 
-  // E.164 validation
   if (!E164_RE.test(phone)) {
     await ack({
       response_action: 'errors',
       errors: {
-        block_phone: 'Enter a valid E.164 phone number starting with + and country code (e.g. +15103137237).',
+        block_phone: 'Could not parse this as a valid phone number. Include the country code, e.g. +52 999 489 0783 or 52 999 489 0783.',
       },
     });
     return;
@@ -257,7 +256,7 @@ boltApp.view('modal_number', async ({ ack, view, client, body }) => {
   await ack();
   setNumber(phone, { name, channel });
   await publishAppHome(client, body.user.id);
-  await notify(client, body.user.id, `✓ Number ${phone}${name ? ` (${name})` : ''} saved.`);
+  await notify(client, body.user.id, `✓ ${phone}${name ? ` (${name})` : ''} saved.`);
 });
 
 boltApp.view('modal_confirm_remove', async ({ ack, view, client, body }) => {
@@ -280,13 +279,18 @@ boltApp.view('modal_csv_upload', async ({ ack, view, client, body }) => {
     return;
   }
 
+  // Normalize phone numbers before validating
+  for (const row of rows) {
+    row.phone_number = normalizePhone(row.phone_number);
+  }
+
   // Validate all phone numbers before applying
   const badRows = rows.filter((r) => !E164_RE.test(r.phone_number));
   if (badRows.length > 0) {
     await ack({
       response_action: 'errors',
       errors: {
-        block_csv: `Invalid phone numbers: ${badRows.map((r) => r.phone_number).join(', ')}. All numbers must be in E.164 format (e.g. +15103137237).`,
+        block_csv: `Could not parse these phone numbers: ${badRows.map((r) => r.phone_number).join(', ')}. Make sure each number includes a country code.`,
       },
     });
     return;
