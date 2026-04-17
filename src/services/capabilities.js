@@ -3,6 +3,7 @@ const path = require('path');
 const cron = require('node-cron');
 const twilio = require('twilio');
 const { getSetting } = require('./settings');
+const { loadConfig, setNumber } = require('./numbers');
 
 const CAPABILITIES_PATH = path.join(__dirname, '../../data/capabilities.json');
 const SYNC_INTERVAL_DAYS = 14;
@@ -56,6 +57,8 @@ function makeClient() {
 /**
  * Fetches all numbers from Twilio and rebuilds the full capabilities store.
  * Sets lastSyncedAt on completion.
+ * Auto-imports any numbers whose Twilio webhooks already point to this
+ * WalkieTalkie instance (WEBHOOK_BASE_URL) if they are not yet in the directory.
  */
 async function syncAllCapabilities() {
   console.log('[capabilities] Starting full sync...');
@@ -63,14 +66,30 @@ async function syncAllCapabilities() {
     const client = makeClient();
     const numbers = await client.incomingPhoneNumbers.list();
     const data = loadCapabilities();
+    const baseUrl = process.env.WEBHOOK_BASE_URL;
+
+    // Load current directory once before iterating
+    const { numbers: configNumbers } = loadConfig();
+    let autoImported = 0;
 
     for (const num of numbers) {
       data.numbers[num.phoneNumber] = buildRecord(num);
+
+      // Auto-import numbers already connected to this WalkieTalkie instance
+      if (baseUrl && !(num.phoneNumber in configNumbers)) {
+        const smsConnected = num.smsUrl && num.smsUrl.startsWith(baseUrl);
+        const voiceConnected = num.voiceUrl && num.voiceUrl.startsWith(baseUrl);
+        if (smsConnected || voiceConnected) {
+          setNumber(num.phoneNumber, { name: num.friendlyName || '' });
+          autoImported++;
+          console.log(`[capabilities] Auto-imported ${num.phoneNumber} (already connected to WalkieTalkie)`);
+        }
+      }
     }
 
     data.lastSyncedAt = new Date().toISOString();
     saveCapabilities(data);
-    console.log(`[capabilities] Full sync complete — ${numbers.length} numbers`);
+    console.log(`[capabilities] Full sync complete — ${numbers.length} numbers${autoImported ? `, ${autoImported} auto-imported` : ''}`);
   } catch (err) {
     console.error('[capabilities] Full sync failed:', err.message);
   }

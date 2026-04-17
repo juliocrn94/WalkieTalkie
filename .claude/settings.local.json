@@ -7,7 +7,8 @@
       "Bash(ngrok version:*)",
       "Bash(curl -s \"http://localhost:3000/logs?limit=10\")",
       "Bash(curl -s \"http://localhost:3000/logs?limit=20\")",
-      "Bash(curl -s \"http://localhost:3000/capabilities\")"
+      "Bash(curl -s \"http://localhost:3000/capabilities\")",
+      "Bash(ls /Users/forest/Documents/Developer/WalkieTalkie/*.md)"
     ]
   }
 }

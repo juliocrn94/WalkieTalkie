@@ -117,86 +117,180 @@ Edit `.env`:
 
 ---
 
-## Running Locally (with ngrok)
+## Running Locally (for testing and development)
 
-### 1. Start ngrok
+### 1. Install dependencies
+
+```bash
+npm install
+cp .env.example .env   # fill in all values
+```
+
+### 2. Start an ngrok tunnel
 
 ```bash
 ngrok http 3000
 ```
 
-Copy the `https://` URL (e.g. `https://abc123.ngrok-free.app`) → set it as `WEBHOOK_BASE_URL` in `.env`
+Copy the `https://` URL (e.g. `https://abc123.ngrok-free.app`) → set `WEBHOOK_BASE_URL=https://abc123.ngrok-free.app` in `.env`.
 
-### 2. Start the server
+> **Nota:** ngrok genera una URL nueva cada vez que se reinicia (en el plan gratuito). Si reinicias ngrok, debes actualizar `WEBHOOK_BASE_URL`, los Request URLs de Slack, y re-correr el script de Twilio.
+
+### 3. Start the server
 
 ```bash
 npm run dev
 ```
 
-You'll see:
+Verify it's up:
+```bash
+curl http://localhost:3000/health
+# → {"status":"ok","uptime":...}
+```
+
+You'll also see in the terminal:
 ```
 [WalkieTalkie] Listening on port 3000
-[WalkieTalkie] Webhook URL: https://abc123.ngrok-free.app/twilio-webhook
-[WalkieTalkie] Slack Events: https://abc123.ngrok-free.app/slack/events
+[capabilities] Store is stale or missing — running initial sync
 ```
 
-### 3. Update Slack app URLs
+### 4. Point Slack at the ngrok URL
 
-In your Slack App settings, update both:
-- Event Subscriptions Request URL → `https://abc123.ngrok-free.app/slack/events`
-- Interactivity Request URL → `https://abc123.ngrok-free.app/slack/events`
+In [api.slack.com/apps](https://api.slack.com/apps) → your app:
+- **Event Subscriptions** → Request URL: `https://abc123.ngrok-free.app/slack/events` → Save
+- **Interactivity & Shortcuts** → Request URL: `https://abc123.ngrok-free.app/slack/events` → Save
 
-Slack will verify the URL immediately — the server must be running.
+Slack verifies the URL immediately — your server must be running when you save.
 
-### 4. Configure Twilio webhooks
+### 5. (Optional) Point Twilio webhooks manually
 
+For individual numbers you want to test, use the **🔗 Conectar a WalkieTalkie** option in the App Home overflow menu for each line. This is the recommended way.
+
+To configure all numbers at once from the terminal:
 ```bash
 node scripts/configure-twilio.js
 ```
 
-This sets `smsUrl` and `voiceUrl` on every number in your account, skipping any that use VAPI/Talkyto.
+### 6. Verify everything works
+
+Send an SMS to any configured number. You should see:
+1. A `[twilio] Received SMS` line in your terminal
+2. A new thread in your Slack default channel
+
+Check logs:
+```bash
+curl http://localhost:3000/logs | jq '.slice(0,3)'
+```
 
 ---
 
-## Deploying to Production
+## Deploying to a Server (Production)
 
 Any Node.js host works: Railway, Render, Fly.io, a VPS, etc.
 
-**Key requirements:**
+**Requirements:**
 - Node.js 18+
 - Persistent storage for the `data/` directory (threads, logs, capabilities, settings)
-- A fixed public HTTPS URL
+- A fixed public HTTPS URL (not a dynamic ngrok URL)
 
 ### Example: Railway
 
 ```bash
-# Install Railway CLI
 npm install -g @railway/cli
-
 railway login
 railway init
 railway up
 ```
 
-Set all environment variables in the Railway dashboard under **Variables**.
+Set all environment variables in the Railway dashboard under **Variables**:
+
+```
+TWILIO_ACCOUNT_SID=ACxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxx
+WEBHOOK_BASE_URL=https://your-app.up.railway.app
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_SIGNING_SECRET=...
+SLACK_DEFAULT_CHANNEL=CXXXXXXXX
+GROQ_API_KEY=...          # optional, for transcription
+ADMIN_SECRET=...          # optional, protects /logs and /capabilities
+```
 
 **After deploying:**
 1. Copy your production URL (e.g. `https://walkietalkie.up.railway.app`)
-2. Set `WEBHOOK_BASE_URL` to that URL in Railway variables
-3. Update both Slack Request URLs to `https://your-domain/slack/events`
-4. Re-run `node scripts/configure-twilio.js` with the production URL to update Twilio webhooks
+2. Update both Slack Request URLs to `https://your-domain/slack/events`
+3. In the WalkieTalkie App Home in Slack, click **🔄 Sync Twilio Numbers** — this syncs capabilities and auto-imports numbers already connected
 
 ### Changing WEBHOOK_BASE_URL (e.g. switching from ngrok to production)
 
-When your public URL changes you must update two things:
+When your public URL changes you must update three things:
 
-1. **`.env`** — set `WEBHOOK_BASE_URL` to the new URL, restart the server
-2. **Twilio webhooks** — re-run the configure script:
+1. **Environment variable** — set `WEBHOOK_BASE_URL` to the new URL, restart the server
+2. **Slack** — update Event Subscriptions and Interactivity URLs in the Slack App settings
+3. **Twilio webhooks** — either use the Connect button per number in App Home, or re-run the script:
    ```bash
    node scripts/configure-twilio.js
    ```
-   This updates `smsUrl` and `voiceUrl` on all numbers to point to the new domain.
-3. **Slack** — update Event Subscriptions and Interactivity URLs in the Slack App settings.
+
+---
+
+## User Guide — Using WalkieTalkie from Slack
+
+> For users who only have access to Slack — no terminal, no code.
+
+### Opening the App Home
+
+1. In Slack, click **Apps** in the left sidebar (or search for `WalkieTalkie`)
+2. Click the **Home** tab — this is your control panel
+
+### Receiving SMS and calls
+
+Nothing to configure once the server is running. When someone sends an SMS to a Twilio number:
+- A thread appears in the assigned Slack channel (or the default channel)
+- OTP codes (4–8 digit numbers) are **broadcast to the channel** so they're visible without clicking the thread
+- Voice calls show a 📞 message with the MP3 attached and a transcript below it
+
+### Managing lines from App Home
+
+**Add a new line:**
+1. Click **➕ Add Line**
+2. Enter the phone number in any format: `+52 999 489 0783`, `529994890783`, `(1) 800 555 1234`
+3. Enter a friendly name (optional but recommended — shown in Slack threads)
+4. Select a Slack channel override (optional — leave blank to use the default)
+5. Leave **Conectar a WalkieTalkie** checked to immediately point the Twilio webhooks at this server
+6. Click **Save**
+
+**Edit or remove a line:**
+- Click the `⋮` overflow menu on any line in the number list → **✏️ Edit** or **🗑 Remove**
+
+**Connect an existing line:**
+- Click `⋮` on any line → **🔗 Conectar a WalkieTalkie**
+- This updates the Twilio webhook URLs so calls and SMS go to this server
+- If the number isn't found in Twilio, you'll see a "🔄 Sync Twilio Numbers" button — click it to refresh and try again
+
+**Sync with Twilio:**
+- Click **🔄 Sync Twilio Numbers** to refresh capabilities (SMS/Voice/MMS flags per number)
+- Numbers whose Twilio webhooks already point to this server are automatically added to the directory
+
+**View recent activity:**
+- Click **📋 Activity Log** to see the last 20 SMS and voice transactions
+- Each entry shows: icon, friendly name, phone number, time, OTP (if any), message body or transcript
+
+**Update Twilio credentials:**
+- Click **✏️ Edit** next to *Twilio Credentials* → enter Account SID and Auth Token → Save
+- No server restart needed — credentials update immediately
+
+**Change the default channel:**
+- Click **✏️ Edit** next to *Default Channel* → pick a channel → Save
+
+### Bulk managing lines via CSV
+
+1. Click **⬇️ Download CSV** to get the full directory
+2. Open in Excel, Google Sheets, or Numbers
+3. Edit `friendly_name`, `channel_id`, `routing` columns
+4. Export as CSV
+5. Click **⬆️ Upload CSV** → paste the CSV content → click **Apply**
+
+> Numbers with `routing=vapi`, `routing=talkyto`, or `routing=pipecat` are saved to the directory but their Twilio webhook URLs are never touched.
 
 ---
 

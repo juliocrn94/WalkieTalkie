@@ -188,10 +188,44 @@ boltApp.action(/^action_number_menu__/, async ({ ack, client, body, action }) =>
       try {
         const caps = await connectNumberToWalkieTalkie(phone);
         const connected = [caps.sms ? 'SMS' : null, caps.voice ? 'Voice' : null].filter(Boolean).join(' + ');
+        await publishAppHome(client, body.user.id);
         await notify(client, body.user.id, `✓ *${name || phone}* conectado a WalkieTalkie — ${connected} activo`);
       } catch (err) {
         console.error(`[bolt] Failed to connect ${phone}:`, err.message);
-        await notify(client, body.user.id, `❌ No se pudo conectar *${name || phone}*: ${err.message}`);
+        await publishAppHome(client, body.user.id);
+        // Post a rich ephemeral with a re-sync button so the user can recover
+        const channel = getSetting('slack.defaultChannel');
+        if (channel) {
+          try {
+            await client.chat.postEphemeral({
+              channel,
+              user: body.user.id,
+              text: `❌ No se pudo conectar ${name || phone}: ${err.message}`,
+              blocks: [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: `❌ *${name || phone}* (\`${phone}\`) no se encontró en la cuenta de Twilio.\n\nSincroniza primero para refrescar la lista de números y luego vuelve a intentarlo.`,
+                  },
+                },
+                {
+                  type: 'actions',
+                  elements: [
+                    {
+                      type: 'button',
+                      text: { type: 'plain_text', text: '🔄 Sync Twilio Numbers', emoji: true },
+                      action_id: 'action_sync_twilio',
+                      style: 'primary',
+                    },
+                  ],
+                },
+              ],
+            });
+          } catch {
+            // Best-effort
+          }
+        }
       }
     } else if (op === 'edit' && isExternal) {
       await client.views.open({
@@ -242,6 +276,7 @@ boltApp.view('modal_number', async ({ ack, view, client, body }) => {
   const phone = normalizePhone(values.block_phone.input_phone.value || '');
   const name = values.block_name.input_name.value?.trim() || '';
   const channel = values.block_channel.input_channel?.selected_channel || '';
+  const connectChecked = values.block_connect?.input_connect?.selected_options?.some((o) => o.value === 'connect') ?? false;
 
   if (!E164_RE.test(phone)) {
     await ack({
@@ -255,8 +290,22 @@ boltApp.view('modal_number', async ({ ack, view, client, body }) => {
 
   await ack();
   setNumber(phone, { name, channel });
+
+  let notifText = `✓ ${phone}${name ? ` (${name})` : ''} guardado.`;
+
+  if (connectChecked) {
+    try {
+      const caps = await connectNumberToWalkieTalkie(phone);
+      const connected = [caps.sms ? 'SMS' : null, caps.voice ? 'Voice' : null].filter(Boolean).join(' + ');
+      notifText += ` Conectado a WalkieTalkie — ${connected} activo.`;
+    } catch (err) {
+      console.error(`[bolt] Failed to connect ${phone} after add:`, err.message);
+      notifText += ` ⚠️ No se pudo conectar a WalkieTalkie: ${err.message}`;
+    }
+  }
+
   await publishAppHome(client, body.user.id);
-  await notify(client, body.user.id, `✓ ${phone}${name ? ` (${name})` : ''} saved.`);
+  await notify(client, body.user.id, notifText);
 });
 
 boltApp.view('modal_confirm_remove', async ({ ack, view, client, body }) => {

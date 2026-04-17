@@ -315,6 +315,31 @@ function buildNumberModal(phone = '', entry = null) {
           placeholder: { type: 'plain_text', text: 'Select a channel (optional)' },
         },
       },
+      // Only show "Connect" checkbox when adding a new line (not editing)
+      ...(!isEdit ? [{
+        type: 'input',
+        block_id: 'block_connect',
+        optional: true,
+        label: { type: 'plain_text', text: 'WalkieTalkie' },
+        element: {
+          type: 'checkboxes',
+          action_id: 'input_connect',
+          initial_options: [
+            {
+              text: { type: 'mrkdwn', text: '*Conectar a WalkieTalkie*' },
+              description: { type: 'plain_text', text: 'Apunta los webhooks de Twilio a este servidor' },
+              value: 'connect',
+            },
+          ],
+          options: [
+            {
+              text: { type: 'mrkdwn', text: '*Conectar a WalkieTalkie*' },
+              description: { type: 'plain_text', text: 'Apunta los webhooks de Twilio a este servidor' },
+              value: 'connect',
+            },
+          ],
+        },
+      }] : []),
     ],
   };
 }
