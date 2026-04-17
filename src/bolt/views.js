@@ -331,7 +331,7 @@ function buildCsvUploadModal() {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '*Column reference*\n• `phone_number` — E.164 format, e.g. `+15103137237` *(required)*\n• `friendly_name` — label in Slack threads\n• `channel_id` — Slack channel ID override (leave blank for default)\n• `routing` — `walkietalkie` or `vapi` (VAPI/Talkyto lines are saved but webhooks are left alone)\n• `sms`, `voice` — informational, not modified by upload',
+          text: '*Column reference*\n• `phone_number` — E.164 format, e.g. `+15103137237` *(required)*\n• `friendly_name` — label in Slack threads\n• `channel_id` — Slack channel ID override (leave blank for default)\n• `routing` — `walkietalkie`, `vapi`, `talkyto`, or `pipecat` (external routing lines are saved but webhooks are left alone)\n• `sms`, `voice` — informational, not modified by upload',
         },
       },
       {
@@ -365,6 +365,51 @@ function buildConfirmRemoveModal(phone, name) {
           type: 'mrkdwn',
           text: `Remove *${name || phone}* (\`${phone}\`) from the number directory?\n\nThis only removes it from WalkieTalkie's mapping — the Twilio number itself is not affected.`,
         },
+      },
+    ],
+  };
+}
+
+// ─── External Routing Warning Modal ──────────────────────────────────────────
+
+/**
+ * Shown instead of the edit modal when a number uses an external routing
+ * provider (VAPI, Talkyto, Pipecat). Editing is blocked to prevent
+ * accidentally overwriting webhook URLs managed by those platforms.
+ *
+ * @param {string} phone     E.164 number
+ * @param {string} name      Friendly name
+ * @param {string} routing   e.g. "vapi", "talkyto", "pipecat"
+ */
+function buildExternalRoutingModal(phone, name, routing) {
+  const label = routing.charAt(0).toUpperCase() + routing.slice(1);
+
+  return {
+    type: 'modal',
+    callback_id: 'modal_external_routing_info',
+    title: { type: 'plain_text', text: 'External Routing' },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `:warning: *This number is managed by ${label}*`,
+        },
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*${name || phone}*  \`${phone}\`\n\nThis line uses *${label}* for voice/SMS routing. WalkieTalkie will not modify its Twilio webhook URLs to avoid breaking the existing configuration.\n\nIf you need to change the friendly name or Slack channel for this number, update it directly in \`config/numbers.json\` or via a CSV upload.`,
+        },
+      },
+      {
+        type: 'context',
+        elements: [{
+          type: 'mrkdwn',
+          text: `To reassign this number to WalkieTalkie, change \`routing\` to \`walkietalkie\` in the CSV upload, then run \`node scripts/configure-twilio.js\`.`,
+        }],
       },
     ],
   };
@@ -444,4 +489,5 @@ module.exports = {
   buildCsvUploadModal,
   buildConfirmRemoveModal,
   buildLogsModal,
+  buildExternalRoutingModal,
 };

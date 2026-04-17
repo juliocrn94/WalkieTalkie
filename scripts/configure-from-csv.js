@@ -10,9 +10,9 @@
  *   phone_number  — E.164 format, required
  *   friendly_name — label shown in Slack threads (optional)
  *   channel_id    — Slack channel ID override (optional)
- *   routing       — "walkietalkie" (default) or "vapi"/"talkyto" — controls whether
+ *   routing       — "walkietalkie" (default) or "vapi"/"talkyto"/"pipecat" — controls whether
  *                   Twilio webhook URLs are configured for this number.
- *                   Numbers with routing=vapi/talkyto are saved to numbers.json but
+ *                   Numbers with routing=vapi/talkyto/pipecat are saved to numbers.json but
  *                   their Twilio webhooks are left untouched.
  *   sms, voice    — informational only (yes/no), not used by this script
  *
@@ -85,8 +85,14 @@ function parseCSV(filePath) {
   }).filter((r) => r.phone_number);
 }
 
-function isVapi(routing) {
-  return routing && ['vapi', 'talkyto'].includes(routing.toLowerCase().trim());
+function isExternalRouting(routing) {
+  return routing && ['vapi', 'talkyto', 'pipecat'].includes(routing.toLowerCase().trim());
+}
+
+function externalRoutingLabel(routing) {
+  const r = (routing || '').toLowerCase().trim();
+  if (r === 'pipecat') return 'Pipecat';
+  return 'VAPI/Talkyto';
 }
 
 async function run() {
@@ -100,7 +106,7 @@ async function run() {
     const name = row.friendly_name || '';
     const channel = row.channel_id || '';
     const routing = row.routing || 'walkietalkie';
-    const vapiLine = isVapi(routing);
+    const externalLine = isExternalRouting(routing);
 
     process.stdout.write(`  ${phone}`);
 
@@ -108,7 +114,7 @@ async function run() {
     const entry = {};
     if (name) entry.name = name;
     if (channel) entry.channel = channel;
-    if (vapiLine) entry.routing = 'vapi';
+    if (externalLine) entry.routing = routing.toLowerCase().trim();
 
     if (Object.keys(entry).length === 1 && entry.name) {
       config.numbers[phone] = name; // simple string form
@@ -118,9 +124,9 @@ async function run() {
     // If all blank, still register the number with empty entry
     if (!config.numbers[phone]) config.numbers[phone] = '';
 
-    // 2. Skip Twilio webhook config for VAPI/Talkyto lines
-    if (vapiLine) {
-      console.log(`  ⊘  ${phone}${name ? `  "${name}"` : ''}  [VAPI/Talkyto — skipped]`);
+    // 2. Skip Twilio webhook config for external routing lines
+    if (externalLine) {
+      console.log(`  ⊘  ${phone}${name ? `  "${name}"` : ''}  [${externalRoutingLabel(routing)} — skipped]`);
       continue;
     }
 
@@ -136,11 +142,14 @@ async function run() {
       const num = results[0];
       const hasSms = !!(num.capabilities && num.capabilities.sms);
       const hasVoice = !!(num.capabilities && num.capabilities.voice);
-      const isVapiVoice = (num.voiceUrl || '').toLowerCase().includes('vapi');
-      const isVapiSms = (num.smsUrl || '').toLowerCase().includes('vapi');
+      const voiceUrlLower = (num.voiceUrl || '').toLowerCase();
+      const smsUrlLower = (num.smsUrl || '').toLowerCase();
+      const isExternalVoice = voiceUrlLower.includes('vapi') || voiceUrlLower.includes('pipecat');
+      const isExternalSms = smsUrlLower.includes('vapi') || smsUrlLower.includes('pipecat');
 
-      if (isVapiVoice || isVapiSms) {
-        console.log(`  ⊘  ${phone}  [VAPI detected in Twilio config — skipped]`);
+      if (isExternalVoice || isExternalSms) {
+        const provider = (voiceUrlLower.includes('pipecat') || smsUrlLower.includes('pipecat')) ? 'Pipecat' : 'VAPI';
+        console.log(`  ⊘  ${phone}  [${provider} detected in Twilio config — skipped]`);
         continue;
       }
 

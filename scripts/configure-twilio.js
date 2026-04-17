@@ -36,15 +36,17 @@ async function run() {
     const hasSms = !!(num.capabilities && num.capabilities.sms);
     const hasVoice = !!(num.capabilities && num.capabilities.voice);
 
-    const isVapiVoice = (num.voiceUrl || '').toLowerCase().includes('vapi');
-    const isVapiSms = (num.smsUrl || '').toLowerCase().includes('vapi');
+    const voiceUrlLower = (num.voiceUrl || '').toLowerCase();
+    const smsUrlLower = (num.smsUrl || '').toLowerCase();
+    const isExternalVoice = voiceUrlLower.includes('vapi') || voiceUrlLower.includes('pipecat');
+    const isExternalSms = smsUrlLower.includes('vapi') || smsUrlLower.includes('pipecat');
 
     const update = {};
-    if (hasSms && !isVapiSms) {
+    if (hasSms && !isExternalSms) {
       update.smsUrl = smsWebhookUrl;
       update.smsMethod = 'POST';
     }
-    if (hasVoice && !isVapiVoice) {
+    if (hasVoice && !isExternalVoice) {
       update.voiceUrl = voiceWebhookUrl;
       update.voiceMethod = 'POST';
     }
@@ -53,9 +55,13 @@ async function run() {
       await client.incomingPhoneNumbers(num.sid).update(update);
     }
 
+    const externalProvider = (isExternalVoice || isExternalSms)
+      ? (voiceUrlLower.includes('pipecat') || smsUrlLower.includes('pipecat') ? 'pipecat' : 'vapi')
+      : null;
+    const skipLabel = externalProvider ? `-skip(${externalProvider})` : '';
     const tags = [
-      hasSms ? (isVapiSms ? 'SMS(vapi-skip)' : 'SMS') : null,
-      hasVoice ? (isVapiVoice ? 'VOICE(vapi-skip)' : 'VOICE') : null,
+      hasSms ? (isExternalSms ? `SMS${skipLabel}` : 'SMS') : null,
+      hasVoice ? (isExternalVoice ? `VOICE${skipLabel}` : 'VOICE') : null,
     ].filter(Boolean).join('+') || 'NONE';
     console.log(`✓  ${num.phoneNumber}  (${num.friendlyName})  [${tags}]`);
 

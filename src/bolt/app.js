@@ -10,6 +10,7 @@ const {
   buildCsvUploadModal,
   buildConfirmRemoveModal,
   buildLogsModal,
+  buildExternalRoutingModal,
 } = require('./views');
 const { loadLogs } = require('../services/logger');
 
@@ -138,6 +139,8 @@ boltApp.action('action_view_logs', async ({ ack, client, body }) => {
   }
 });
 
+const EXTERNAL_ROUTING_PROVIDERS = new Set(['vapi', 'talkyto', 'pipecat']);
+
 // Overflow menu for edit/remove on each number row
 boltApp.action(/^action_number_menu__/, async ({ ack, client, body, action }) => {
   await ack();
@@ -145,17 +148,23 @@ boltApp.action(/^action_number_menu__/, async ({ ack, client, body, action }) =>
   const [op, phone] = selected.split(/__(.+)/);
 
   try {
-    if (op === 'remove') {
-      const { numbers } = loadConfig();
-      const entry = numbers[phone] || null;
-      const name = entry ? (typeof entry === 'string' ? entry : (entry.name || '')) : '';
+    const { numbers } = loadConfig();
+    const entry = numbers[phone] || null;
+    const name = entry ? (typeof entry === 'string' ? entry : (entry.name || '')) : '';
+    const routing = (entry && typeof entry === 'object' && entry.routing) || 'walkietalkie';
+    const isExternal = EXTERNAL_ROUTING_PROVIDERS.has(routing.toLowerCase());
+
+    if (op === 'edit' && isExternal) {
+      await client.views.open({
+        trigger_id: body.trigger_id,
+        view: buildExternalRoutingModal(phone, name, routing),
+      });
+    } else if (op === 'remove') {
       await client.views.open({
         trigger_id: body.trigger_id,
         view: buildConfirmRemoveModal(phone, name),
       });
     } else if (op === 'edit') {
-      const { numbers } = loadConfig();
-      const entry = numbers[phone] || null;
       await client.views.open({
         trigger_id: body.trigger_id,
         view: buildNumberModal(phone, entry),
