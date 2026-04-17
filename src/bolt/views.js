@@ -2,6 +2,18 @@ const { getSetting } = require('../services/settings');
 const { loadConfig } = require('../services/numbers');
 const { getCapabilities } = require('../services/capabilities');
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function relativeTime(isoString) {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
 /**
  * Builds the full App Home Block Kit view.
  * Called on every home_opened event and after any config change.
@@ -75,7 +87,7 @@ function buildAppHomeView() {
     },
     { type: 'divider' },
 
-    // ─── Sync Button ──────────────────────────────────────────────────────────
+    // ─── Sync + Logs Buttons ──────────────────────────────────────────────────
     {
       type: 'actions',
       elements: [
@@ -84,6 +96,11 @@ function buildAppHomeView() {
           text: { type: 'plain_text', text: '🔄 Sync Twilio Numbers', emoji: true },
           action_id: 'action_sync_twilio',
           style: 'primary',
+        },
+        {
+          type: 'button',
+          text: { type: 'plain_text', text: '📋 Activity Log', emoji: true },
+          action_id: 'action_view_logs',
         },
       ],
     },
@@ -353,6 +370,72 @@ function buildConfirmRemoveModal(phone, name) {
   };
 }
 
+// ─── Logs Modal ───────────────────────────────────────────────────────────────
+
+function buildLogsModal(logs = []) {
+  const blocks = [];
+
+  if (logs.length === 0) {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: '_No hay transacciones registradas aún._' },
+    });
+    return {
+      type: 'modal',
+      callback_id: 'modal_logs',
+      title: { type: 'plain_text', text: 'Activity Log' },
+      close: { type: 'plain_text', text: 'Close' },
+      blocks,
+    };
+  }
+
+  for (const entry of logs.slice(0, 20)) {
+    const isSms = entry.type === 'sms';
+    const isVoice = entry.type === 'voice-recording';
+    const icon = isSms ? '💬' : '📞';
+    const typeLabel = isSms ? 'SMS' : 'Voice';
+    const when = relativeTime(entry.timestamp);
+    const name = entry.friendlyName || entry.to || '';
+    const statusIcon = entry.status === 'error' ? '❌' : '';
+
+    let detail = `From: \`${entry.from || '?'}\``;
+    if (entry.otp) detail += `  ·  OTP: \`${entry.otp}\``;
+    if (isSms && entry.body) {
+      const snippet = entry.body.length > 60 ? entry.body.slice(0, 60) + '…' : entry.body;
+      detail += `\n_"${snippet}"_`;
+    }
+    if (isVoice && entry.duration) detail += `  ·  ${entry.duration}s`;
+    if (entry.status === 'error') detail += `\n⚠️ ${entry.error || 'error'}`;
+
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `${icon} ${statusIcon}*${typeLabel}* · *${name}*  \`${entry.to}\`  ·  _${when}_\n${detail}`,
+      },
+    });
+    blocks.push({ type: 'divider' });
+  }
+
+  // Remove trailing divider
+  if (blocks[blocks.length - 1]?.type === 'divider') blocks.pop();
+
+  if (logs.length > 20) {
+    blocks.push({
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `_Showing 20 of ${logs.length} entries. Use \`GET /logs\` for the full log._` }],
+    });
+  }
+
+  return {
+    type: 'modal',
+    callback_id: 'modal_logs',
+    title: { type: 'plain_text', text: 'Activity Log' },
+    close: { type: 'plain_text', text: 'Close' },
+    blocks,
+  };
+}
+
 module.exports = {
   buildAppHomeView,
   buildCredentialsModal,
@@ -360,4 +443,5 @@ module.exports = {
   buildNumberModal,
   buildCsvUploadModal,
   buildConfirmRemoveModal,
+  buildLogsModal,
 };

@@ -9,7 +9,9 @@ const {
   buildNumberModal,
   buildCsvUploadModal,
   buildConfirmRemoveModal,
+  buildLogsModal,
 } = require('./views');
+const { loadLogs } = require('../services/logger');
 
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
@@ -125,6 +127,16 @@ boltApp.action('action_upload_csv', async ({ ack, client, body }) => {
 
 // No-op ack for the download button (it's a URL link — Slack still sends an action)
 boltApp.action('action_download_csv', async ({ ack }) => { await ack(); });
+
+boltApp.action('action_view_logs', async ({ ack, client, body }) => {
+  await ack();
+  try {
+    const logs = loadLogs();
+    await client.views.open({ trigger_id: body.trigger_id, view: buildLogsModal(logs) });
+  } catch (err) {
+    console.error('[bolt] Failed to open logs modal:', err.message);
+  }
+});
 
 // Overflow menu for edit/remove on each number row
 boltApp.action(/^action_number_menu__/, async ({ ack, client, body, action }) => {
